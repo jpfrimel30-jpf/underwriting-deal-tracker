@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Underwriting Deal Tracker</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        .sort-icon {
+            opacity: 0.3;
+            transition: opacity 0.2s ease-in-out;
+        }
+        .sort-icon.active {
+            opacity: 1;
+        }
+        .sort-icon.rotated {
+            transform: rotate(180deg);
+        }
+        .table-container .table .dropdown.is-active .dropdown-menu {
+            display: block;
+            position: absolute;
+            z-index: 1000;
+        }
+        .navbar-brand .navbar-item {
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+    </style>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal is-active">
+        <div class="modal-background"></div>
+        <div class="modal-card">
+            <header class="modal-card-head">
+                <p class="modal-card-title">Sign In</p>
+            </header>
+            <section class="modal-card-body">
+                <h1 class="title is-4 has-text-centered">Underwriting Deal Tracker</h1>
+                <div class="notification is-info is-light has-text-centered py-2 mb-4">
+                    <span class="icon"><i class="fas fa-info-circle"></i></span>
+                    Demo access — credentials pre-filled. Just click <strong>Sign In</strong>.
+                </div>
+                <form id="loginForm">
+                    <div class="field">
+                        <label class="label">Email</label>
+                        <div class="control">
+                            <input class="input" type="email" id="loginEmail">
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label class="label">Password</label>
+                        <div class="control has-icons-right">
+                            <input class="input" id="loginPassword" type="password">
+                            <span class="icon is-right is-clickable" id="password-toggle">
+                                <i class="fas fa-eye-slash"></i>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="has-text-centered has-text-danger is-hidden mb-2" id="loginErrorMessage">
+                        Incorrect Email or Password
+                    </div>
+                    <div class="field is-grouped is-grouped-centered">
+                        <p class="control">
+                            <button class="button is-primary" type="submit" id="signInButton">
+                                <span>Sign In</span>
+                            </button>
+                        </p>
+                    </div>
+                </form>
+            </section>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="app-main-content" class="is-hidden">
+
+        <nav class="navbar is-light" role="navigation">
+            <div class="container">
+                <div class="navbar-brand">
+                    <span class="navbar-item">
+                        <span class="icon mr-2"><i class="fas fa-chart-line"></i></span>
+                        Underwriting Deal Tracker
+                    </span>
+                </div>
+                <div class="navbar-end">
+                    <div class="navbar-item">
+                        <button class="button is-light is-small" id="logoutButton">
+                            <span class="icon"><i class="fas fa-sign-out-alt"></i></span>
+                            <span>Sign Out</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <section class="section pb-0">
+            <div class="container">
+                <div class="field is-grouped is-grouped-centered">
+                    <p class="control">
+                        <button class="button is-primary" id="openAddDealForm">
+                            <span class="icon"><i class="fas fa-plus"></i></span>
+                            <span>Add New Deal</span>
+                        </button>
+                    </p>
+                    <p class="control">
+                        <input class="input" type="text" placeholder="Search deals..." id="searchDeals" style="min-width: 260px;">
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Add Deal Modal -->
+        <div id="dealModal" class="modal">
+            <div class="modal-background"></div>
+            <div class="modal-card">
+                <header class="modal-card-head">
+                    <p class="modal-card-title">Add New Deal</p>
+                    <button class="delete" aria-label="close" id="closeModalButton"></button>
+                </header>
+                <section class="modal-card-body">
+                    <form id="dealForm">
+                        <div class="field">
+                            <label class="label">Deal Name *</label>
+                            <div class="control">
+                                <input class="input" type="text" id="dealName" placeholder="e.g., Riverside Commons">
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label class="label">Due Date *</label>
+                            <div class="control">
+                                <input class="input" type="date" id="dueDate">
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label class="label">Analyst</label>
+                            <div class="control">
+                                <div class="select is-fullwidth">
+                                    <select id="analyst"></select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label class="label">Associate / Director *</label>
+                            <div class="control">
+                                <div class="select is-fullwidth">
+                                    <select id="associate"></select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label class="label">State *</label>
+                            <div class="control">
+                                <input class="input" type="text" id="state" placeholder="e.g., CA">
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label class="label">Guidance</label>
+                            <div class="control">
+                                <input class="input" type="text" id="guidance" placeholder="e.g., 2,500,000">
+                            </div>
+                        </div>
+                    </form>
+                </section>
+                <footer class="modal-card-foot is-justify-content-flex-end">
+                    <button class="button is-success" id="addDealButton">Add Deal</button>
+                    <button class="button" id="cancelButton">Cancel</button>
+                </footer>
+            </div>
+        </div>
+
+        <!-- Underwriting Table -->
+        <section class="section">
+            <div class="container">
+                <h2 class="title is-2 has-text-centered has-text-info">Underwriting</h2>
+                <div class="table-container">
+                    <table class="table is-fullwidth is-striped is-hoverable is-narrow is-bordered">
+                        <thead>
+                            <tr>
+                                <th data-column="dealName" data-status="underwriting">Deal Name <span class="icon is-small sort-icon"><i class="fas fa-sort"></i></span></th>
+                                <th data-column="dueDate" data-status="underwriting">Due Date <span class="icon is-small sort-icon"><i class="fas fa-sort"></i></span></th>
+                                <th data-column="analyst" data-status="underwriting">Analyst <span class="icon is-small sort-icon"><i class="fas fa-sort"></i></span></th>
+                                <th data-column="associate" data-status="underwriting">Associate / Director <span class="icon is-small sort-icon"><i class="fas fa-sort"></i></span></th>
+                                <th data-column="state" data-status="underwriting">State <span class="icon is-small sort-icon"><i class="fas fa-sort"></i></span></th>
+                                <th data-column="guidance" data-status="underwriting">Guidance <span class="icon is-small sort-icon"><i class="fas fa-sort"></i></span></th>
+                                <th class="has-text-centered">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="underwritingTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- In Review Table -->
+        <section class="section">
+            <div class="container">
+                <h2 class="title is-2 has-text-centered has-text-warning">In Review</h2>
+                <div class="table-container">
+                    <table class="table is-fullwidth is-striped is-hoverable is-narrow is-bordered">
+                        <thead>
+                            <tr>
+                                <th data-column="dealName" data-status="inReview">Deal Name <span class="icon is-small sort-icon"><i class="fas fa-sort"></i></span></th>
+                                <th data-column="dueDate" data-status="inReview">Due Date <span class="icon is-small sort-icon"><i class="fas fa-sort"></i></span></th>
+                                <th data-column="analyst" data-status="inReview">Analyst <span class="icon is-small sort-icon"><i class="fas fa-sort"></i></span></th>
+                                <th data-column="associate" data-status="inReview">Associate / Director <span class="icon is-small sort-icon"><i class="fas fa-sort"></i></span></th>
+                                <th data-column="state" data-status="inReview">State <span class="icon is-small sort-icon"><i class="fas fa-sort"></i></span></th>
+                                <th data-column="guidance" data-status="inReview">Guidance <span class="icon is-small sort-icon"><i class="fas fa-sort"></i></span></th>
+                                <th class="has-text-centered">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inReviewTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sent LOI Table -->
+        <section class="section">
+            <div class="container">
+                <h2 class="title is-2 has-text-centered has-text-primary">Sent LOI</h2>
+                <div class="table-container">
+                    <table class="table is-fullwidth is-striped is-hoverable is-narrow is-bordered">
+                        <thead>
+                            <tr>
+                                <th data-column="dealName" data-status="sentLoi">Deal Name <span class="icon is-small sort-icon"><i class="fas fa-sort"></i></span></th>
+                                <th data-column="dueDate" data-status="sentLoi">Due Date <span class="icon is-small sort-icon"><i class="fas fa-sort"></i></span></th>
+                                <th data-column="analyst" data-status="sentLoi">Analyst <span class="icon is-small sort-icon"><i class="fas fa-sort"></i></span></th>
+                                <th data-column="associate" data-status="sentLoi">Associate / Director <span class="icon is-small sort-icon"><i class="fas fa-sort"></i></span></th>
+                                <th data-column="state" data-status="sentLoi">State <span class="icon is-small sort-icon"><i class="fas fa-sort"></i></span></th>
+                                <th data-column="guidance" data-status="sentLoi">Guidance <span class="icon is-small sort-icon"><i class="fas fa-sort"></i></span></th>
+                                <th class="has-text-centered">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sentLoiTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Passed Deals Table -->
+        <section class="section">
+            <div class="container">
+                <h2 class="title is-2 has-text-centered has-text-danger">Passed Deals</h2>
+                <div class="table-container">
+                    <table class="table is-fullwidth is-striped is-hoverable is-narrow is-bordered">
+                        <thead>
+                            <tr>
+                                <th data-column="dealName" data-status="passed">Deal Name <span class="icon is-small sort-icon"><i class="fas fa-sort"></i></span></th>
+                                <th data-column="dueDate" data-status="passed">Due Date <span class="icon is-small sort-icon"><i class="fas fa-sort"></i></span></th>
+                                <th data-column="analyst" data-status="passed">Analyst <span class="icon is-small sort-icon"><i class="fas fa-sort"></i></span></th>
+                                <th data-column="associate" data-status="passed">Associate / Director <span class="icon is-small sort-icon"><i class="fas fa-sort"></i></span></th>
+                                <th data-column="state" data-status="passed">State <span class="icon is-small sort-icon"><i class="fas fa-sort"></i></span></th>
+                                <th data-column="guidance" data-status="passed">Guidance <span class="icon is-small sort-icon"><i class="fas fa-sort"></i></span></th>
+                                <th class="has-text-centered">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="passedTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
